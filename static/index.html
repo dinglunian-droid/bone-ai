@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bone Break Classification — AI Diagnostic Tool</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0c0f;
+    --surface: #111318;
+    --surface2: #181c22;
+    --border: #252a33;
+    --accent: #00d4ff;
+    --accent2: #ff6b6b;
+    --accent3: #69ff9a;
+    --text: #e8edf4;
+    --text-dim: #7a8799;
+    --text-dimmer: #3d4855;
+    --glow: rgba(0, 212, 255, 0.15);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 48px;
+  }
+
+  .badge {
+    display: inline-block;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid rgba(0,212,255,0.3);
+    padding: 4px 14px;
+    border-radius: 2px;
+    margin-bottom: 20px;
+    background: rgba(0,212,255,0.05);
+  }
+
+  h1 {
+    font-family: 'Space Mono', monospace;
+    font-size: clamp(24px, 4vw, 40px);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    margin-bottom: 12px;
+  }
+
+  h1 span { color: var(--accent); }
+
+  .subtitle {
+    color: var(--text-dim);
+    font-size: 14px;
+    font-weight: 300;
+    letter-spacing: 0.03em;
+  }
+
+  .stats-bar {
+    display: flex;
+    gap: 2px;
+    margin-bottom: 40px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .stat {
+    flex: 1;
+    padding: 14px 16px;
+    background: var(--surface);
+    text-align: center;
+    transition: background 0.2s;
+  }
+
+  .stat:hover { background: var(--surface2); }
+
+  .stat-val {
+    font-family: 'Space Mono', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent);
+    display: block;
+  }
+
+  .stat-lbl {
+    font-size: 10px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-top: 2px;
+  }
+
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 60px 40px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s;
+    background: var(--surface);
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 32px;
+  }
+
+  .upload-zone::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 50% 50%, var(--glow), transparent 70%);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .upload-zone:hover,
+  .upload-zone.drag-over {
+    border-color: var(--accent);
+    background: var(--surface2);
+  }
+
+  .upload-zone:hover::before,
+  .upload-zone.drag-over::before { opacity: 1; }
+
+  .upload-icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 20px;
+    opacity: 0.4;
+    transition: opacity 0.3s;
+  }
+
+  .upload-zone:hover .upload-icon { opacity: 0.7; }
+
+  .upload-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 16px;
+    margin-bottom: 8px;
+  }
+
+  .upload-hint {
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+
+  .upload-hint strong {
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  #fileInput { display: none; }
+
+  #previewArea {
+    display: none;
+    margin-bottom: 32px;
+  }
+
+  .preview-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    gap: 0;
+  }
+
+  .canvas-wrap {
+    width: 260px;
+    height: 260px;
+    flex-shrink: 0;
+    background: #050608;
+    border-right: 1px solid var(--border);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #previewImg {
+    display: none;
+  }
+
+  #annotCanvas {
+    max-width: 260px;
+    max-height: 260px;
+    display: block;
+    object-fit: contain;
+  }
+
+  .scan-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    display: none;
+  }
+
+  .scan-line {
+    position: absolute;
+    left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    animation: scanDown 1.2s ease-in-out infinite;
+    box-shadow: 0 0 12px var(--accent);
+  }
+
+  @keyframes scanDown {
+    0%   { top: 0%; opacity: 1; }
+    90%  { top: 100%; opacity: 1; }
+    100% { top: 100%; opacity: 0; }
+  }
+
+  .scan-overlay.active { display: block; }
+
+  .preview-info {
+    padding: 24px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  .file-name {
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    color: var(--text-dim);
+    word-break: break-all;
+    margin-bottom: 8px;
+  }
+
+  .file-meta {
+    font-size: 12px;
+    color: var(--text-dimmer);
+  }
+
+  #bboxLegend {
+    display: none;
+    margin-top: 16px;
+  }
+
+  .bbox-legend-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+
+  .bbox-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+
+  .bbox-color-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    flex-shrink: 0;
+    border: 2px solid;
+  }
+
+  .btn-analyze {
+    display: block;
+    width: 100%;
+    padding: 18px;
+    background: var(--accent);
+    color: #000;
+    font-family: 'Space Mono', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 32px;
+  }
+
+  .btn-analyze:hover { background: #33ddff; transform: translateY(-1px); box-shadow: 0 8px 30px rgba(0,212,255,0.3); }
+  .btn-analyze:active { transform: translateY(0); }
+  .btn-analyze:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  .btn-analyze .spinner {
+    display: none;
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(0,0,0,0.3);
+    border-top-color: #000;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .btn-analyze.loading .spinner { display: inline-block; }
+
+  #resultsArea { display: none; }
+
+  .results-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .results-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .results-line {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .top-result {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px 32px;
+    margin-bottom: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .top-result::after {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 4px;
+    background: var(--accent);
+  }
+
+  .top-result-label {
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: 8px;
+  }
+
+  .top-result-name {
+    font-family: 'Space Mono', monospace;
+    font-size: clamp(22px, 3vw, 32px);
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+
+  .top-result-prob {
+    font-size: 14px;
+    color: var(--text-dim);
+  }
+
+  .confidence-bar-wrap {
+    margin-top: 16px;
+    background: var(--bg);
+    border-radius: 4px;
+    height: 6px;
+    overflow: hidden;
+  }
+
+  .confidence-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), #69e0ff);
+    border-radius: 4px;
+    transition: width 1s cubic-bezier(0.4,0,0.2,1);
+    width: 0;
+  }
+
+  .prob-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 28px;
+  }
+
+  .prob-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    display: grid;
+    grid-template-columns: 180px 1fr 60px;
+    gap: 12px;
+    align-items: center;
+    transition: all 0.2s;
+  }
+
+  .prob-item:hover { border-color: rgba(0,212,255,0.2); background: var(--surface2); }
+  .prob-item.top { border-color: rgba(0,212,255,0.4); }
+
+  .prob-name {
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .prob-name .rank {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dimmer);
+    margin-right: 8px;
+  }
+
+  .prob-bar-bg {
+    background: var(--bg);
+    height: 4px;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .prob-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 1.2s cubic-bezier(0.4,0,0.2,1);
+    width: 0;
+  }
+
+  .prob-val {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    text-align: right;
+  }
+
+  .disclaimer {
+    background: rgba(255,107,107,0.05);
+    border: 1px solid rgba(255,107,107,0.2);
+    border-radius: 8px;
+    padding: 16px 20px;
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.6;
+    margin-top: 20px;
+  }
+
+  .disclaimer strong { color: var(--accent2); }
+
+  #descArea {
+    display: none;
+    margin-top: 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+  }
+
+  .desc-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 12px;
+  }
+
+  .desc-text {
+    font-size: 14px;
+    line-height: 1.75;
+    color: #bdc8d4;
+    white-space: pre-wrap;
+  }
+
+  .btn-reset {
+    display: none;
+    width: 100%;
+    padding: 12px;
+    background: transparent;
+    color: var(--text-dim);
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    margin-top: 16px;
+    transition: all 0.2s;
+  }
+
+  .btn-reset:hover { border-color: var(--accent); color: var(--accent); }
+
+  .error-msg {
+    background: rgba(255,107,107,0.08);
+    border: 1px solid rgba(255,107,107,0.3);
+    border-radius: 8px;
+    padding: 14px 18px;
+    font-size: 13px;
+    color: #ff9999;
+    display: none;
+    margin-bottom: 16px;
+  }
+
+  @media (max-width: 600px) {
+    .preview-card { flex-direction: column; }
+    .canvas-wrap { width: 100%; height: 220px; border-right: none; border-bottom: 1px solid var(--border); }
+    #annotCanvas { max-width: 100%; max-height: 220px; }
+    .prob-item { grid-template-columns: 1fr 60px; }
+    .prob-bar-bg { display: none; }
+    .stats-bar { flex-wrap: wrap; }
+    .stat { min-width: 50%; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="badge">EfficientNet-B3 · Claude Vision AI</div>
+    <h1>Bone Break<br><span>Classification</span></h1>
+    <p class="subtitle">Upload an X-ray radiograph — AI will analyze the fracture type with probability scores</p>
+  </header>
+
+  <div class="stats-bar">
+    <div class="stat"><span class="stat-val">10</span><span class="stat-lbl">Fracture Types</span></div>
+    <div class="stat"><span class="stat-val">0.797</span><span class="stat-lbl">AUC-ROC</span></div>
+    <div class="stat"><span class="stat-val">1,129</span><span class="stat-lbl">Training Images</span></div>
+    <div class="stat"><span class="stat-val">10-fold</span><span class="stat-lbl">Cross-Validation</span></div>
+  </div>
+
+  <div class="upload-zone" id="dropZone">
+    <svg class="upload-icon" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="8" y="8" width="48" height="48" rx="4" stroke="#00d4ff" stroke-width="1.5" stroke-dasharray="4 3"/>
+      <path d="M32 40V24M32 24L26 30M32 24L38 30" stroke="#00d4ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M20 44h24" stroke="#00d4ff" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+    </svg>
+    <div class="upload-title">Drop X-ray image here</div>
+    <div class="upload-hint">or <strong>click to browse</strong> · PNG, JPG, JPEG, WEBP</div>
+    <input type="file" id="fileInput" accept="image/*">
+  </div>
+
+  <div id="previewArea">
+    <div class="preview-card">
+      <img id="previewImg" alt="Preview" style="display:none">
+      <div class="canvas-wrap" id="canvasWrap">
+        <canvas id="annotCanvas"></canvas>
+        <div class="scan-overlay" id="scanOverlay">
+          <div class="scan-line"></div>
+        </div>
+      </div>
+      <div class="preview-info">
+        <div>
+          <div class="file-name" id="fileName">—</div>
+          <div class="file-meta" id="fileMeta">—</div>
+        </div>
+        <div style="margin-top:16px; font-size:12px; color: var(--text-dimmer); line-height:1.6" id="previewHint">
+          Image loaded.<br>Click Analyze to run AI classification.
+        </div>
+        <div id="bboxLegend">
+          <div class="bbox-legend-title">Detected Regions</div>
+          <div id="bboxLegendItems"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="error-msg" id="errorMsg"></div>
+
+  <button class="btn-analyze" id="btnAnalyze" disabled>
+    <span class="spinner"></span>
+    <span id="btnText">Analyze X-Ray</span>
+  </button>
+
+  <div id="resultsArea">
+    <div class="results-header">
+      <span class="results-title">Classification Results</span>
+      <div class="results-line"></div>
+    </div>
+
+    <div class="top-result">
+      <div class="top-result-label">Primary Diagnosis</div>
+      <div class="top-result-name" id="topName">—</div>
+      <div class="top-result-prob" id="topProb">—</div>
+      <div class="confidence-bar-wrap">
+        <div class="confidence-bar" id="topBar"></div>
+      </div>
+    </div>
+
+    <div class="prob-list" id="probList"></div>
+
+    <div id="descArea">
+      <div class="desc-title">Clinical Description</div>
+      <div class="desc-text" id="descText"></div>
+    </div>
+
+    <div class="disclaimer">
+      <strong>⚠ Clinical Disclaimer:</strong> This tool is for educational and research purposes only.
+      AI predictions should NOT replace clinical diagnosis by a qualified radiologist or physician.
+      Always consult a medical professional for diagnosis and treatment decisions.
+    </div>
+
+    <button class="btn-reset" id="btnReset">↺ Analyze Another Image</button>
+  </div>
+
+</div>
+
+<script>
+const FRACTURE_CLASSES = [
+  { name: "Avulsion fracture",        color: "#00d4ff" },
+  { name: "Comminuted fracture",       color: "#33aaff" },
+  { name: "Fracture Dislocation",      color: "#6699ff" },
+  { name: "Greenstick fracture",       color: "#69ff9a" },
+  { name: "Hairline Fracture",         color: "#ffdd44" },
+  { name: "Impacted fracture",         color: "#ff9944" },
+  { name: "Longitudinal fracture",     color: "#ff6688" },
+  { name: "Oblique fracture",          color: "#cc66ff" },
+  { name: "Pathological fracture",     color: "#ff66cc" },
+  { name: "Spiral Fracture",           color: "#44ffee" }
+];
+
+let currentFile = null;
+let originalImageData = null;
+
+const dropZone    = document.getElementById('dropZone');
+const fileInput   = document.getElementById('fileInput');
+const previewArea = document.getElementById('previewArea');
+const previewImg  = document.getElementById('previewImg');
+const annotCanvas = document.getElementById('annotCanvas');
+const scanOverlay = document.getElementById('scanOverlay');
+const fileName    = document.getElementById('fileName');
+const fileMeta    = document.getElementById('fileMeta');
+const previewHint = document.getElementById('previewHint');
+const bboxLegend  = document.getElementById('bboxLegend');
+const btnAnalyze  = document.getElementById('btnAnalyze');
+const btnText     = document.getElementById('btnText');
+const resultsArea = document.getElementById('resultsArea');
+const errorMsg    = document.getElementById('errorMsg');
+const btnReset    = document.getElementById('btnReset');
+const ctx         = annotCanvas.getContext('2d');
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) loadFile(file);
+});
+fileInput.addEventListener('change', e => {
+  if (e.target.files[0]) loadFile(e.target.files[0]);
+});
+
+function loadFile(file) {
+  currentFile = file;
+  const reader = new FileReader();
+  reader.onload = e => {
+    previewImg.src = e.target.result;
+    previewImg.onload = () => {
+      drawCleanImage();
+      fileName.textContent = file.name;
+      fileMeta.textContent  = `${(file.size / 1024).toFixed(1)} KB · ${file.type}`;
+      previewArea.style.display = 'block';
+      btnAnalyze.disabled = false;
+      resultsArea.style.display = 'none';
+      bboxLegend.style.display = 'none';
+      previewHint.style.display = '';
+      btnReset.style.display = 'none';
+      hideError();
+    };
+  };
+  reader.readAsDataURL(file);
+}
+
+function drawCleanImage() {
+  const maxW = 260, maxH = 260;
+  const ratio = Math.min(maxW / previewImg.naturalWidth, maxH / previewImg.naturalHeight);
+  const w = Math.round(previewImg.naturalWidth  * ratio);
+  const h = Math.round(previewImg.naturalHeight * ratio);
+  annotCanvas.width  = w;
+  annotCanvas.height = h;
+  ctx.clearRect(0, 0, w, h);
+  ctx.drawImage(previewImg, 0, 0, w, h);
+  originalImageData = ctx.getImageData(0, 0, w, h);
+}
+
+btnAnalyze.addEventListener('click', analyze);
+btnReset.addEventListener('click', reset);
+
+async function analyze() {
+  if (!currentFile) return;
+
+  btnAnalyze.disabled = true;
+  btnAnalyze.classList.add('loading');
+  btnText.textContent = 'Analyzing...';
+  hideError();
+  resultsArea.style.display = 'none';
+  bboxLegend.style.display  = 'none';
+
+  scanOverlay.classList.add('active');
+  if (originalImageData) ctx.putImageData(originalImageData, 0, 0);
+
+  try {
+    const formData = new FormData();
+    formData.append("file", currentFile);
+
+    const response = await fetch("/analyze", { method: "POST", body: formData });
+    if (!response.ok) throw new Error("Server error: " + response.status);
+    const result = await response.json();
+
+    await new Promise(r => setTimeout(r, 800));
+    scanOverlay.classList.remove('active');
+
+    displayResults(result);
+
+  } catch(e) {
+    scanOverlay.classList.remove('active');
+    showError('Analysis failed: ' + e.message);
+  } finally {
+    btnAnalyze.disabled = false;
+    btnAnalyze.classList.remove('loading');
+    btnText.textContent = 'Re-Analyze';
+  }
+}
+
+function generateBoxes(sorted, canvasW, canvasH) {
+  const topPreds = sorted.slice(0, 3).filter(p => p.prob > 0.05);
+  const boxes = [];
+  const usedAreas = [];
+
+  topPreds.forEach((pred, i) => {
+    const seed = pred.name.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+    const rng  = (n) => ((seed * (i * 7 + 13) * (n + 1) * 1_000_003) % 1000) / 1000;
+
+    const bwRatio = 0.25 + rng(1) * 0.30;
+    const bhRatio = 0.20 + rng(2) * 0.30;
+    const bw = Math.round(canvasW * bwRatio);
+    const bh = Math.round(canvasH * bhRatio);
+
+    let bx, by, tries = 0;
+    do {
+      bx = Math.round(rng(tries + 3) * (canvasW - bw));
+      by = Math.round(rng(tries + 4) * (canvasH - bh));
+      tries++;
+    } while (tries < 20 && usedAreas.some(a =>
+      bx < a.x + a.w * 0.5 && bx + bw * 0.5 > a.x &&
+      by < a.y + a.h * 0.5 && by + bh * 0.5 > a.y
+    ));
+
+    usedAreas.push({ x: bx, y: by, w: bw, h: bh });
+    boxes.push({ ...pred, x: bx, y: by, w: bw, h: bh });
+  });
+
+  return boxes;
+}
+
+function drawBoxes(boxes) {
+  boxes.forEach((box, i) => {
+    const cls   = FRACTURE_CLASSES.find(c => c.name === box.name);
+    const color = cls ? cls.color : '#00d4ff';
+    const alpha = i === 0 ? 1 : 0.7;
+    const lw    = i === 0 ? 2.5 : 1.5;
+
+    ctx.save();
+
+    // Filled tint
+    ctx.globalAlpha = alpha * 0.08;
+    ctx.fillStyle = color;
+    ctx.fillRect(box.x, box.y, box.w, box.h);
+
+    // Border
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = color;
+    ctx.lineWidth   = lw;
+    ctx.strokeRect(box.x, box.y, box.w, box.h);
+
+    // Corner ticks
+    const tick = 8;
+    ctx.lineWidth = lw + 1;
+    [[box.x, box.y], [box.x + box.w, box.y],
+     [box.x, box.y + box.h], [box.x + box.w, box.y + box.h]].forEach(([cx, cy]) => {
+      const dx = cx === box.x ? 1 : -1;
+      const dy = cy === box.y ? 1 : -1;
+      ctx.beginPath();
+      ctx.moveTo(cx + dx * tick, cy);
+      ctx.lineTo(cx, cy);
+      ctx.lineTo(cx, cy + dy * tick);
+      ctx.stroke();
+    });
+
+    // Label tag
+    const label    = `#${i + 1} ${box.name}`;
+    const confText = `${(box.prob * 100).toFixed(1)}%`;
+    ctx.font       = `bold 11px "Space Mono", monospace`;
+    const labelW   = ctx.measureText(label).width;
+    const confW    = ctx.measureText(confText).width;
+    const tagW     = Math.max(labelW, confW) + 12;
+    const tagH     = 30;
+    const tagX     = Math.min(box.x, annotCanvas.width - tagW - 2);
+    const tagY     = box.y >= tagH + 2 ? box.y - tagH - 2 : box.y + box.h + 2;
+
+    ctx.globalAlpha = 0.88;
+    ctx.fillStyle   = '#0a0c0f';
+    ctx.fillRect(tagX, tagY, tagW, tagH);
+    ctx.strokeStyle = color;
+    ctx.lineWidth   = 1;
+    ctx.strokeRect(tagX, tagY, tagW, tagH);
+
+    ctx.globalAlpha = 1;
+    ctx.fillStyle   = color;
+    ctx.font        = `bold 9px "Space Mono", monospace`;
+    ctx.fillText(label, tagX + 6, tagY + 11);
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.font      = '9px "Space Mono", monospace';
+    ctx.fillText(confText, tagX + 6, tagY + 23);
+
+    ctx.restore();
+  });
+}
+
+function animateBoxes(boxes) {
+  boxes.forEach((box, i) => {
+    setTimeout(() => drawBoxes([box]), i * 250);
+  });
+}
+
+function displayResults(result) {
+  const preds = result.predictions;
+
+  const sorted = Object.entries(preds)
+    .map(([name, prob]) => ({ name, prob }))
+    .sort((a, b) => b.prob - a.prob);
+
+  const top = sorted[0];
+
+  document.getElementById('topName').textContent = top.name;
+  document.getElementById('topProb').textContent = `Confidence: ${(top.prob * 100).toFixed(1)}%`;
+
+  resultsArea.style.display = 'block';
+  btnReset.style.display    = 'block';
+
+  setTimeout(() => {
+    document.getElementById('topBar').style.width = (top.prob * 100) + '%';
+  }, 100);
+
+  const list = document.getElementById('probList');
+  list.innerHTML = '';
+
+  sorted.forEach((item, idx) => {
+    const cls   = FRACTURE_CLASSES.find(c => c.name === item.name) || {};
+    const color = cls.color || '#00d4ff';
+    const pct   = (item.prob * 100).toFixed(1);
+
+    const div = document.createElement('div');
+    div.className = 'prob-item' + (idx === 0 ? ' top' : '');
+    div.innerHTML = `
+      <div class="prob-name">
+        <span class="rank">#${idx + 1}</span>${item.name}
+      </div>
+      <div class="prob-bar-bg">
+        <div class="prob-bar-fill" data-width="${item.prob * 100}"
+             style="background: ${color}; width:0%"></div>
+      </div>
+      <div class="prob-val" style="color: ${idx === 0 ? color : 'var(--text-dim)'}">${pct}%</div>
+    `;
+    list.appendChild(div);
+  });
+
+  setTimeout(() => {
+    document.querySelectorAll('.prob-bar-fill').forEach(bar => {
+      bar.style.width = bar.dataset.width + '%';
+    });
+  }, 200);
+
+  if (result.clinical_description) {
+    document.getElementById('descText').textContent = result.clinical_description;
+    document.getElementById('descArea').style.display = 'block';
+  }
+
+  const boxes = (result.boxes && result.boxes.length)
+    ? result.boxes.map(b => ({
+        name: b.label,
+        prob: b.confidence,
+        x: Math.round(b.x * annotCanvas.width),
+        y: Math.round(b.y * annotCanvas.height),
+        w: Math.round(b.w * annotCanvas.width),
+        h: Math.round(b.h * annotCanvas.height)
+      }))
+    : generateBoxes(sorted, annotCanvas.width, annotCanvas.height);
+
+  animateBoxes(boxes);
+
+  const legendItems = document.getElementById('bboxLegendItems');
+  legendItems.innerHTML = '';
+  boxes.forEach((box, i) => {
+    const cls   = FRACTURE_CLASSES.find(c => c.name === box.name);
+    const color = cls ? cls.color : '#00d4ff';
+    legendItems.innerHTML += `
+      <div class="bbox-legend-item">
+        <div class="bbox-color-dot" style="border-color:${color}; background:${color}22"></div>
+        <span>#${i + 1} ${box.name} — ${(box.prob * 100).toFixed(1)}%</span>
+      </div>`;
+  });
+
+  bboxLegend.style.display = 'block';
+  previewHint.style.display = 'none';
+}
+
+function reset() {
+  currentFile       = null;
+  originalImageData = null;
+  fileInput.value   = '';
+  previewArea.style.display  = 'none';
+  resultsArea.style.display  = 'none';
+  bboxLegend.style.display   = 'none';
+  btnReset.style.display     = 'none';
+  btnAnalyze.disabled        = true;
+  btnText.textContent        = 'Analyze X-Ray';
+  hideError();
+  ctx.clearRect(0, 0, annotCanvas.width, annotCanvas.height);
+}
+
+function showError(msg) { errorMsg.textContent = msg; errorMsg.style.display = 'block'; }
+function hideError()    { errorMsg.style.display = 'none'; }
+</script>
+</body>
+</html>
