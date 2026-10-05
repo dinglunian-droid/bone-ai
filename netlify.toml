@@ -1,0 +1,8 @@
+# Netlify settings for the bone-ai site
+# Site files are in the "static" folder; no build step is needed.
+
+[build]
+  publish = "static"
+
+[functions]
+  directory = "static/netlify/functions"

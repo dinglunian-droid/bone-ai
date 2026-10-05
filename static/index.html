@@ -1240,7 +1240,7 @@ Rules:
     scanOverlay.classList.remove('active');
     console.error('Claude API error:', e);
     // Fallback: use intelligent demo mode without showing error
-   showError(t('errorAnalysis') + e.message);
+    showError(t('errorAnalysis') + e.message);
   } finally {
     btnAnalyze.disabled = false;
     btnAnalyze.classList.remove('loading');
